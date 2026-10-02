@@ -199,10 +199,10 @@ jobs:
       # Every deploy starts from nothing. The service is a read-only dictionary
       # with no database, no Redis and no volumes, so there is no state worth
       # keeping — but a stale image, a stale checkout or a leftover container is
-      # exactly what "fresh" is meant to eliminate. Each wipe below is scoped to
-      # kbbi-api's own resources by name; GMW and every other service on the
-      # host are never touched.
-      - name: Wipe previous state on the VPS
+      # exactly what a fresh deploy is meant to eliminate. Each removal below is
+      # scoped to kbbi-api's own resources by name; GMW and every other service on
+      # the host are never touched.
+      - name: Reset previous state on the VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -256,9 +256,9 @@ jobs:
             fi
             ls "$DATASET_JSON"
 
-            # --no-cache: the wipe above already cleared the builder cache, so
-            # this is belt-and-braces. Without it a cached prepare-data layer
-            # could carry a dictionary generated from an older dataset.
+            # --no-cache: the builder cache was already cleared above, so this
+            # is belt-and-braces. Without it a cached prepare-data layer could
+            # carry a dictionary generated from an older dataset.
             docker compose build --no-cache
             # Recreate rather than reuse: compose only recreates a container when
             # its config or image changed, and a same-named container left over

@@ -138,7 +138,7 @@ Each deploy wipes this service's state before rebuilding. There is no database,
 no Redis and no volumes to preserve — the only thing the process holds is the
 read-only word list, which is rebuilt from the baked dump on every start.
 
-Wiped, in order:
+Reset, in order:
 
 | What | Command | Scope |
 | --- | --- | --- |
