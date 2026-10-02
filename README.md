@@ -153,9 +153,9 @@ survive into the new one.
 
 Two deliberate limits on that:
 
-- **Not `docker system prune -a`.** imrnes is a shared host running GMW. A global
-  prune would evict GMW's images and caches. Every wipe above is filtered to
-  `kbbi-api` by name.
+- **Not `docker system prune -a`.** imrnes is a shared host running 22 other
+  containers (Coolify, Gitea, MinIO, Redis, Postgres). A global prune would evict
+  their images and caches. Every removal above is filtered to `kbbi-api` by name.
 - **The dataset is excluded from `git clean`.** It is fetched from upstream and
   costs 123MB; wiping it would re-download on every deploy. It is not build
   output, so keeping it does not compromise freshness.

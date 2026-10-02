@@ -181,9 +181,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Prod is the imrnes VPS (a Nix/GMW host), not the Orange box. The service
-      # runs there as a container, so the deploy is a compose up against a
-      # checked-out repo — no Nix store path, no profile switch.
+      # Prod is the imrnes VPS, not the Orange box and not the host GMW runs on.
+      # The service runs there as a container, so the deploy is a compose up
+      # against a checked-out repo — no Nix store path, no profile switch.
       - name: Setup SSH key
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -214,7 +214,7 @@ jobs:
       # with no database, no Redis and no volumes, so there is no state worth
       # keeping — but a stale image, a stale checkout or a leftover container is
       # exactly what a fresh deploy is meant to eliminate. Each removal below is
-      # scoped to kbbi-api's own resources by name; GMW and every other service on
+      # scoped to kbbi-api's own resources by name; the 22 other containers on
       # the host are never touched.
       - name: Reset previous state on the VPS
         env:
@@ -234,7 +234,7 @@ jobs:
 
             echo "=== build cache ==="
             # Builder cache only. Deliberately NOT `docker system prune -a`:
-            # that would evict GMW'"'"'s images and caches on a shared host.
+            # that would evict the other 22 containers'"'"' images and caches.
             docker builder prune -af
 
             echo "=== checkout ==="
