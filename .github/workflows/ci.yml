@@ -40,14 +40,22 @@ jobs:
         run: bun test
 
       # The 143MB upstream dataset is not committed (see .gitignore), so every
-      # job that prepares a dump has to fetch it first. Sparse-checkout just
-      # json/ — the csv/ half is 21MB that nothing in this repo reads.
+      # job that prepares a dump has to fetch it first.
+      #
+      # Cloned to a scratch dir and only json/ is moved into the workspace, so
+      # the layout is exactly kbbi-dataset-kbbi-v-main/json/ — the same shape a
+      # local dev checkout has, and what the Dockerfile COPYs. Cloning straight
+      # into the workspace would nest it one level deeper under the clone's own
+      # name, and a mismatch here fails as a bare ENOENT much later.
       - name: Fetch the KBBI dataset
         run: |
+          tmp=$(mktemp -d)
           git clone --filter=blob:none --sparse --depth 1 \
-            https://github.com/baguskto/kbbi-api.git kbbi-dataset-kbbi-v-main
-          cd kbbi-dataset-kbbi-v-main
-          git sparse-checkout set kbbi-dataset-kbbi-v-main/json
+            https://github.com/baguskto/kbbi-api.git "$tmp/dataset"
+          git -C "$tmp/dataset" sparse-checkout set kbbi-dataset-kbbi-v-main/json
+          mkdir -p kbbi-dataset-kbbi-v-main
+          mv "$tmp/dataset/kbbi-dataset-kbbi-v-main/json" kbbi-dataset-kbbi-v-main/
+          rm -rf "$tmp"
           ls kbbi-dataset-kbbi-v-main/json
 
       # The dump is generated, not committed, so nothing in tests/ can catch a
@@ -123,13 +131,17 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # The Dockerfile COPYs kbbi-dataset-kbbi-v-main/json and generates the dump
-      # from it, so it must exist in the build context.
+      # from it, so it must exist in the build context with exactly that shape.
       - name: Fetch the KBBI dataset
         run: |
+          tmp=$(mktemp -d)
           git clone --filter=blob:none --sparse --depth 1 \
-            https://github.com/baguskto/kbbi-api.git kbbi-dataset-kbbi-v-main
-          cd kbbi-dataset-kbbi-v-main
-          git sparse-checkout set kbbi-dataset-kbbi-v-main/json
+            https://github.com/baguskto/kbbi-api.git "$tmp/dataset"
+          git -C "$tmp/dataset" sparse-checkout set kbbi-dataset-kbbi-v-main/json
+          mkdir -p kbbi-dataset-kbbi-v-main
+          mv "$tmp/dataset/kbbi-dataset-kbbi-v-main/json" kbbi-dataset-kbbi-v-main/
+          rm -rf "$tmp"
+          ls kbbi-dataset-kbbi-v-main/json
 
       - name: Build the image
         uses: docker/build-push-action@v6
@@ -188,13 +200,20 @@ jobs:
             cd /opt/kbbi-api
             git fetch --all --tags
             git checkout '"$(git rev-parse HEAD)"'
-            # The dataset is fetched, not vendored; prepare it if this checkout
-            # does not have it. Only json/ is needed (see Dockerfile).
-            test -d kbbi-dataset-kbbi-v-main/json \
-              || (git clone --filter=blob:none --sparse --depth 1 \
-                    https://github.com/baguskto/kbbi-api.git kbbi-dataset-kbbi-v-main \
-                  && cd kbbi-dataset-kbbi-v-main \
-                  && git sparse-checkout set kbbi-dataset-kbbi-v-main/json)
+            # The dataset is fetched, not vendored. Only json/ is needed, laid out as
+            # kbbi-dataset-kbbi-v-main/json to match the Dockerfile COPY and a
+            # local dev checkout.
+            DATASET_JSON="$PWD/kbbi-dataset-kbbi-v-main/json"
+            if [ ! -d "$DATASET_JSON" ]; then
+              tmp=$(mktemp -d)
+              git clone --filter=blob:none --sparse --depth 1 \
+                https://github.com/baguskto/kbbi-api.git "$tmp/dataset"
+              git -C "$tmp/dataset" sparse-checkout set kbbi-dataset-kbbi-v-main/json
+              mkdir -p kbbi-dataset-kbbi-v-main
+              mv "$tmp/dataset/kbbi-dataset-kbbi-v-main/json" kbbi-dataset-kbbi-v-main/
+              rm -rf "$tmp"
+            fi
+            ls "$DATASET_JSON"
             docker compose up -d --build
             docker compose ps
           '
