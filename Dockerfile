@@ -5,7 +5,10 @@
 # builder produces both the sources and the dump, and the final stage copies
 # only what the service reads at runtime.
 
-FROM oven/bun:1.3-alpine AS builder
+# 1.4.2, not 1.3-alpine: bun.lock is lockfileVersion 2, which Bun 1.3 cannot
+# parse ("Unknown lockfile version"). The tag must track whatever wrote
+# bun.lock, or `bun install --frozen-lockfile` fails before any code runs.
+FROM oven/bun:1.4.2-alpine AS builder
 
 WORKDIR /build
 
@@ -40,7 +43,7 @@ RUN WORDS=$(bun -e 'const i = await Bun.file("kv-data/__index_words__.json").jso
  && [ "$FORMS" -gt 1000 ]
 
 
-FROM oven/bun:1.3-alpine AS runtime
+FROM oven/bun:1.4.2-alpine AS runtime
 
 # tini reaps zombies and forwards SIGTERM, so `docker stop` reaches Bun and the
 # container exits promptly instead of waiting out the 10s kill timeout.
