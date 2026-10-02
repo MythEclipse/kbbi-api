@@ -5,6 +5,22 @@ import type { Dictionary } from "../dictionary/dictionary.js";
 const DEFAULT_LIMIT = 10;
 /** Ceiling on `limit`, so one caller cannot ask for the whole dictionary. */
 const MAX_LIMIT = 100;
+/**
+ * Ceiling on `words` in one `/api/words` call.
+ *
+ * The moderation gateway looks up every distinct word in the message it is
+ * judging (up to 30 per message). Per-word `/api/word/:word` for that is 30
+ * round trips inside the latency budget of a moderation decision, so it needs a
+ * batch call. The cap exists because `words` is a repeated query parameter:
+ * without a ceiling one request could name the whole dictionary and this
+ * endpoint would do 112k lookups in a single request, which is the exact
+ * denial-of-service shape a public read-only API should not have. Set well
+ * above the gateway's 30 so the cap there is a product decision about prompt
+ * cost, not something this endpoint imposes.
+ */
+const MAX_BATCH_WORDS = 128;
+/** Input longer than this is not a word; it is a pasted sentence. */
+const MAX_WORD_LENGTH = 64;
 
 /** A response the router decided on: a status plus an already-shaped body. */
 interface RouteResult {
@@ -73,6 +89,7 @@ const ENDPOINTS = [
   "GET /api/check/:word",
   "GET /api/similar/:word?limit=n",
   "GET /api/search?q=&limit=n",
+  "GET /api/words?words=a&words=b",
   "GET /api/stats",
 ];
 
@@ -129,6 +146,53 @@ export function createRequestHandler(
           suggestions: dictionary.findSimilar(word, readLimit(params)),
         },
       }),
+    },
+
+    words: {
+      word: false,
+      handle: (_word, params) => {
+        // `words` is repeated: ?words=keluarga&words=kelakau. A single `words`
+        // param would break on any word containing a space, and JSON-in-a-query
+        // would need a body this GET-only API has no reader for.
+        const requested = params.getAll("words");
+        if (requested.length === 0) {
+          return {
+            status: 400,
+            body: {
+              error: "At least one 'words' parameter is required",
+              example: "/api/words?words=keluarga&words=kelakau",
+            },
+          };
+        }
+        if (requested.length > MAX_BATCH_WORDS) {
+          return {
+            status: 400,
+            body: {
+              error: `Too many words: ${requested.length}, maximum is ${MAX_BATCH_WORDS}`,
+            },
+          };
+        }
+
+        // One entry per requested word, in request order, including the ones
+        // with no entry. A caller mapping results back onto a message needs
+        // positional correspondence — a response that silently omitted unknown
+        // words would shift every later result onto the wrong word.
+        const results = requested.map((raw) => {
+          const word = raw.trim();
+          if (word.length === 0 || word.length > MAX_WORD_LENGTH) {
+            return { word: raw, status: "invalid", entry: null, standard: null };
+          }
+          const entry = dictionary.lookup(word);
+          return {
+            word,
+            status: entry ? "success" : "not_found",
+            entry,
+            standard: dictionary.check(word),
+          };
+        });
+
+        return { status: 200, body: { results } };
+      },
     },
 
     search: {

@@ -16,8 +16,18 @@ services:
 
     # Host 4020 → container 8080. Deliberately not 8080 on the host: GMW's
     # backend already owns that port on this VPS.
+    #
+    # Bound to the Tailscale IP, not 127.0.0.1. The discord-gateway that
+    # consumes this API runs on a different box (orange), and Tailscale is
+    # already the transport between them — Redis on this host binds
+    # 100.121.180.82 the same way. Loopback-only would make the API reachable
+    # from nothing but this host, which is the same as not deploying it.
+    #
+    # Still not 0.0.0.0: kbbi-api holds no credentials and is public data, but
+    # there is no reason to add a listener on the public interface when the
+    # only consumer is a Tailscale peer.
     ports:
-      - "127.0.0.1:4020:8080"
+      - "100.121.180.82:4020:8080"
 
     environment:
       PORT: "8080"

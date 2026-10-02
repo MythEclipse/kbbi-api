@@ -130,3 +130,62 @@ describe("search without a query", () => {
     expect(capture("/api/search?q=").statusCode).toBe(400);
   });
 });
+describe("/api/words", () => {
+  it("returns one result per requested word, in order", () => {
+    const response = capture("/api/words?words=keluarga&words=kelakuan");
+    expect(response.statusCode).toBe(200);
+    expect(response.body.results.map((r: { word: string }) => r.word)).toEqual([
+      "keluarga",
+      "kelakuan",
+    ]);
+    expect(response.body.results[0].status).toBe("success");
+  });
+
+  /**
+   * The property the moderation gateway depends on. It maps results back onto
+   * the words it asked about, so a response that omitted unknown words would
+   * shift every later definition onto the wrong word — a wrong-meaning
+   * attribution that is silent, not an error.
+   */
+  it("keeps a not_found placeholder in position rather than omitting it", () => {
+    const response = capture("/api/words?words=tidakada&words=keluarga");
+    expect(response.body.results.length).toBe(2);
+    expect(response.body.results[0]).toMatchObject({
+      word: "tidakada",
+      status: "not_found",
+      entry: null,
+    });
+    // The word after the unknown one must still resolve — that is the whole
+    // point of positional correspondence.
+    expect(response.body.results[1].status).toBe("success");
+  });
+
+  it("carries the standardness check alongside the entry", () => {
+    const response = capture("/api/words?words=keluarga");
+    expect(response.body.results[0].standard).toEqual({
+      word: "keluarga",
+      is_standard: true,
+      standard_form: "keluarga",
+    });
+  });
+
+  it("400s with no words rather than answering about nothing", () => {
+    const response = capture("/api/words");
+    expect(response.statusCode).toBe(400);
+    expect(response.body.error).toContain("words");
+  });
+
+  it("caps the batch so one request cannot name the dictionary", () => {
+    const many = Array.from({ length: 200 }, (_, i) => `words=k${i}`).join("&");
+    const response = capture(`/api/words?${many}`);
+    expect(response.statusCode).toBe(400);
+    expect(response.body.error).toContain("maximum");
+  });
+
+  it("rejects a pasted sentence without discarding the valid words", () => {
+    const sentence = "a".repeat(80);
+    const response = capture(`/api/words?words=${sentence}&words=keluarga`);
+    expect(response.body.results[0].status).toBe("invalid");
+    expect(response.body.results[1].status).toBe("success");
+  });
+});
