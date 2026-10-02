@@ -172,6 +172,11 @@ jobs:
     needs: docker
     runs-on: ubuntu-latest
     environment: production
+    # Skipped until the deploy secrets exist, so a fresh clone gets a green
+    # pipeline for the parts that are set up instead of a red X on SSH config
+    # nobody has filled in yet. Remove this condition once VPS_HOST,
+    # VPS_USER and SSH_PRIVATE_KEY are set and the first real deploy has run.
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

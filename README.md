@@ -105,10 +105,20 @@ Production is the **imrnes VPS**, running the Docker image. It is not deployed t
 the Orange box and not published to Cloudflare — the upstream project was a
 Workers deployment, and this is a self-hosted Node/Bun service instead.
 
+The `deploy` CI job is gated on the repository variable `DEPLOY_ENABLED` being
+`true`, and additionally needs three repository secrets: `VPS_HOST`, `VPS_USER`
+and `SSH_PRIVATE_KEY`. Until those are set the job is skipped and the rest of the
+pipeline still reports honestly.
+
 ```bash
 git clone <repo> /opt/kbbi-api && cd /opt/kbbi-api
-# The dump is baked into the image, so the dataset must be present:
-git clone --depth 1 https://github.com/damzaky/kumpulan-kata-bahasa-indonesia-KBBI.git kbbi-dataset-kbbi-v-main
+# The dump is baked into the image, so the dataset must be present. Only json/
+# is needed; sparse-checkout keeps the 21MB csv/ out.
+tmp=$(mktemp -d)
+git clone --filter=blob:none --sparse --depth 1 https://github.com/baguskto/kbbi-api.git "$tmp/dataset"
+git -C "$tmp/dataset" sparse-checkout set kbbi-dataset-kbbi-v-main/json
+mkdir -p kbbi-dataset-kbbi-v-main
+mv "$tmp/dataset/kbbi-dataset-kbbi-v-main/json" kbbi-dataset-kbbi-v-main/
 docker compose up -d --build
 curl -sf http://127.0.0.1:4020/api/stats
 ```
@@ -147,9 +157,11 @@ to imrnes followed by a verification request against the live service.
 
 ## Data source
 
-[`damzaky/kumpulan-kata-bahasa-indonesia-KBBI`](https://github.com/damzaky/kumpulan-kata-bahasa-indonesia-KBBI),
-following [baguskto/kbbi-api](https://github.com/baguskto/kbbi-api) for the
-endpoint shape.
+The 112,645-entry dataset is bundled in
+[baguskto/kbbi-api](https://github.com/baguskto/kbbi-api) under
+`kbbi-dataset-kbbi-v-main/json/`, and this project follows that repo for the
+endpoint shape. It is fetched rather than committed — the Nix build pins it by
+commit, CI sparse-checkouts only `json/`.
 
 All data is owned by Badan Pengembangan dan Pembinaan Bahasa, Kementerian
 Pendidikan, Kebudayaan, Riset, dan Teknologi Republik Indonesia. Non-commercial use
