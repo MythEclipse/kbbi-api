@@ -132,6 +132,39 @@ restart. The image runs unprivileged with a read-only root and a 512MB cap, and
 its healthcheck asserts the dictionary actually loaded (`total_words` ≥ 100,000)
 rather than just that the port answers.
 
+### Every deploy starts from nothing
+
+Each deploy wipes this service's state before rebuilding. There is no database,
+no Redis and no volumes to preserve — the only thing the process holds is the
+read-only word list, which is rebuilt from the baked dump on every start.
+
+Wiped, in order:
+
+| What | Command | Scope |
+| --- | --- | --- |
+| Container | `docker rm -f kbbi-api` | this service, by name |
+| Images | `docker rmi -f` on `kbbi-api*` | this service's tags, including dangling |
+| Build cache | `docker builder prune -af` | builder cache only |
+| Checkout | `git checkout --force` + `git clean -fdx` | `/opt/kbbi-api` |
+
+The build then runs `docker compose build --no-cache` and
+`up -d --force-recreate`, so no layer or container from a previous commit can
+survive into the new one.
+
+Two deliberate limits on that:
+
+- **Not `docker system prune -a`.** imrnes is a shared host running GMW. A global
+  prune would evict GMW's images and caches. Every wipe above is filtered to
+  `kbbi-api` by name.
+- **The dataset is excluded from `git clean`.** It is fetched from upstream and
+  costs 123MB; wiping it would re-download on every deploy. It is not build
+  output, so keeping it does not compromise freshness.
+
+After deploying, CI asserts the result is genuinely fresh rather than merely
+alive: exactly one running container, and the VPS checkout is on the same commit
+as CI. A stale container left over from a previous deploy would answer
+`/api/stats` perfectly well, so liveness alone proves nothing.
+
 ### Nix
 
 Also packaged with Nix, for hosts that prefer the store:

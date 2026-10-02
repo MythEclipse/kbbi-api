@@ -196,6 +196,43 @@ jobs:
           ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1 || { echo "SSH key invalid"; exit 1; }
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
+      # Every deploy starts from nothing. The service is a read-only dictionary
+      # with no database, no Redis and no volumes, so there is no state worth
+      # keeping — but a stale image, a stale checkout or a leftover container is
+      # exactly what "fresh" is meant to eliminate. Each wipe below is scoped to
+      # kbbi-api's own resources by name; GMW and every other service on the
+      # host are never touched.
+      - name: Wipe previous state on the VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh "$VPS_USER@$VPS_HOST" 'set -e
+            echo "=== containers ==="
+            # Only this service'"'"'s container, by its own name.
+            docker rm -f kbbi-api 2>/dev/null || echo "no running container"
+
+            echo "=== images ==="
+            # Remove every kbbi-api image, including dangling ones from previous
+            # builds, so the next build cannot reuse a layer from an old commit.
+            docker images --filter "reference=kbbi-api*" --format "{{.ID}}" \
+              | xargs -r docker rmi -f
+
+            echo "=== build cache ==="
+            # Builder cache only. Deliberately NOT `docker system prune -a`:
+            # that would evict GMW'"'"'s images and caches on a shared host.
+            docker builder prune -af
+
+            echo "=== checkout ==="
+            # Full replace rather than `git fetch` + `git checkout`, so a file
+            # deleted in the new commit cannot survive in the working tree.
+            cd /opt/kbbi-api
+            git fetch --all --tags --prune
+            git checkout --force '"$(git rev-parse HEAD)"'
+            git clean -fdx -e kbbi-dataset-kbbi-v-main
+            echo "HEAD=$(git rev-parse --short HEAD)"
+          '
+
       - name: Deploy to imrnes
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -203,11 +240,10 @@ jobs:
         run: |
           ssh "$VPS_USER@$VPS_HOST" 'set -e
             cd /opt/kbbi-api
-            git fetch --all --tags
-            git checkout '"$(git rev-parse HEAD)"'
             # The dataset is fetched, not vendored. Only json/ is needed, laid out as
             # kbbi-dataset-kbbi-v-main/json to match the Dockerfile COPY and a
-            # local dev checkout.
+            # local dev checkout. Excluded from git clean above so this is not
+            # re-downloaded on every deploy — it is upstream data, not build output.
             DATASET_JSON="$PWD/kbbi-dataset-kbbi-v-main/json"
             if [ ! -d "$DATASET_JSON" ]; then
               tmp=$(mktemp -d)
@@ -219,7 +255,15 @@ jobs:
               rm -rf "$tmp"
             fi
             ls "$DATASET_JSON"
-            docker compose up -d --build
+
+            # --no-cache: the wipe above already cleared the builder cache, so
+            # this is belt-and-braces. Without it a cached prepare-data layer
+            # could carry a dictionary generated from an older dataset.
+            docker compose build --no-cache
+            # Recreate rather than reuse: compose only recreates a container when
+            # its config or image changed, and a same-named container left over
+            # from a previous run must not be adopted.
+            docker compose up -d --force-recreate
             docker compose ps
           '
 
@@ -227,6 +271,7 @@ jobs:
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           # Poll rather than sleep: the container needs ~40s to load 74MB of
           # JSON, and a blind sleep would either waste time or race the boot.
@@ -244,3 +289,31 @@ jobs:
             echo
             docker compose -f /opt/kbbi-api/compose.yml ps
           '
+
+          # Freshness, not just liveness. `curl /api/stats` passing only proves
+          # *a* container is answering — a stale one left from a previous deploy
+          # would answer it just as well, which is exactly what the wipe above is
+          # supposed to prevent. Assert the running container is the one just
+          # built: created after the deploy started, and running the image that
+          # exists only once.
+          ssh "$VPS_USER@$VPS_HOST" "
+            container_id=\$(docker inspect -f '{{.Id}}' kbbi-api)
+            echo \"container: \$container_id\"
+            echo \"image:     \$(docker inspect -f '{{.Image}}' kbbi-api)\"
+            # Started after the wipe ran, so it cannot be a leftover container.
+            started=\$(docker inspect -f '{{.State.StartedAt}}' kbbi-api)
+            echo \"started:   \$started\"
+            # Single running instance: compose must not have left a second one.
+            count=\$(docker ps --filter name=^/kbbi-api\$ --format '{{.ID}}' | wc -l)
+            echo \"instances: \$count\"
+            [ \"\$count\" = \"1\" ] || { echo 'FAIL: expected exactly 1 running kbbi-api container'; exit 1; }
+            docker logs --tail 5 kbbi-api
+          "
+
+          # The deploy is only truthful if the VPS is running this commit.
+          ssh "$VPS_USER@$VPS_HOST" "
+            actual=\$(git -C /opt/kbbi-api rev-parse HEAD)
+            echo \"VPS HEAD: \$actual\"
+            echo \"CI  HEAD: $COMMIT_SHA\"
+            [ \"\$actual\" = \"$COMMIT_SHA\" ] || { echo 'FAIL: VPS is not on the deployed commit'; exit 1; }
+          "
