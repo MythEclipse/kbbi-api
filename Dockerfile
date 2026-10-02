@@ -21,6 +21,10 @@ RUN bun install --frozen-lockfile
 COPY tsconfig.json ./
 COPY src ./src
 COPY scripts ./scripts
+# tests/ must be in the builder or `bun test` finds nothing — and exits 0 when
+# it finds nothing, so a missing COPY turns the test gate into a silent no-op
+# that reports success.
+COPY tests ./tests
 # The 143MB upstream dataset, fetched (not vendored — see .gitignore). The dump
 # is generated from it, so it must be present at build time. Only json/ is
 # needed; prepare-data.ts reads no other part.
@@ -29,7 +33,12 @@ COPY kbbi-dataset-kbbi-v-main/json ./kbbi-dataset-kbbi-v-main/json
 # Fail the build on a type error or a failing test rather than discovering it at
 # runtime on the VPS.
 RUN ./node_modules/.bin/tsc --noEmit
-RUN bun test
+# Parse the summary rather than trusting the exit code: `bun test` exits 0 when
+# it discovers no test files at all, so a build context missing tests/ would
+# otherwise report a passing test gate over zero tests.
+RUN COUNT=$(bun test 2>&1 | tee /dev/stderr | grep -oE 'Ran [0-9]+ tests' | grep -oE '[0-9]+') \
+ && [ "${COUNT:-0}" -ge 41 ] \
+ || { echo "FAIL: expected at least 41 tests, ran ${COUNT:-0}"; exit 1; }
 
 RUN bun run scripts/prepare-data.ts
 
