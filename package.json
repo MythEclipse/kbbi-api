@@ -1,21 +1,24 @@
 {
-  "name": "open-api-kbbi",
+  "name": "kbbi-api",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "type": "module",
+  "description": "Self-hosted KBBI (Indonesian dictionary) REST API — 112,645 words, zero runtime dependencies.",
+  "license": "MIT",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "prepare-data": "node scripts/prepare-data.js",
-    "build": "echo 'No build step required for Workers'",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "bun run src/server.ts",
+    "dev": "bun --watch run src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run typecheck && bun test",
+    "prepare-data": "bun run scripts/prepare-data.ts"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "engines": {
+    "bun": ">=1.3.0"
+  },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20251115.0",
-    "typescript": "^5.9.3",
-    "wrangler": "^4.47.0"
+    "@types/bun": "^1.2.0",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
   }
 }

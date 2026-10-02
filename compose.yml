@@ -1,0 +1,55 @@
+# Production deployment for the imrnes VPS.
+#
+# `docker compose up -d --build` is the whole deploy. The dictionary is baked
+# into the image at build time (the dump is generated from the vendored dataset),
+# so there is no volume to provision and no migration step — but it also means a
+# dictionary refresh is a rebuild, not a restart.
+
+services:
+  kbbi-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kbbi-api:latest
+    container_name: kbbi-api
+    restart: unless-stopped
+
+    # Host 4020 → container 8080. Deliberately not 8080 on the host: GMW's
+    # backend already owns that port on this VPS.
+    ports:
+      - "127.0.0.1:4020:8080"
+
+    environment:
+      PORT: "8080"
+      KBBI_DATA_DIR: /app/kv-data
+
+    # The dictionary is ~150MB resident once parsed into JS objects. Capping at
+    # 512MB leaves headroom for the JSON parse peak without letting a leak grow
+    # unbounded.
+    mem_limit: 512m
+
+    # Read-only root: the service writes nothing, so any write attempt is a bug
+    # worth failing on rather than silently accommodating.
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    security_opt:
+      - no-new-privileges:true
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - --eval
+        - const r = await fetch("http://127.0.0.1:8080/api/stats"); if (!r.ok) process.exit(1); const s = await r.json(); if (s.total_words < 100000) process.exit(1);
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3

@@ -1,319 +1,158 @@
-# KBBI API - Indonesian Dictionary API
+# KBBI API
 
-Backend API for the KBBI Assistant mobile app, deployed on Cloudflare Workers.
+Self-hosted REST API over the Indonesian dictionary (KBBI) — 112,645 headwords,
+3,619 non-standard forms. Built with [Bun](https://bun.sh) and TypeScript, zero
+runtime dependencies.
 
-## Features
+Built as a grounding reference for an LLM moderation pipeline: when a model
+claims an Indonesian word means something it does not, the dictionary settles
+it.
 
-- **Word Lookup**: Check if a word exists in KBBI
-- **Word Details**: Get complete word information (meanings, word class, etymology, etc.)
-- **Non-Standard Check**: Check if a word is in standard form and get suggestions
-- **Similar Words**: Get typo suggestions using Levenshtein distance
-- **Search**: Search words by prefix or substring
-- **High Performance**: Deployed on Cloudflare's global edge network with KV storage
-- **CORS Enabled**: Ready for mobile and web apps
-
-## API Endpoints
-
-### 1. Check if word exists
-```
-GET /api/lookup/:word
-```
-
-**Example:**
-```bash
-curl https://your-worker.workers.dev/api/lookup/rumah
-```
-
-**Response:**
-```json
-{
-  "exists": true,
-  "word": "rumah"
-}
-```
-
-### 2. Get word details
-```
-GET /api/word/:word
-```
-
-**Example:**
-```bash
-curl https://your-worker.workers.dev/api/word/rumah
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "data": {
-    "pranala": "https://kbbi.kemdikbud.go.id/entri/rumah",
-    "entri": [
-      {
-        "nama": "rumah",
-        "kata_dasar": ["rumah"],
-        "makna": [...],
-        "etimologi": "...",
-        ...
-      }
-    ]
-  }
-}
-```
-
-### 3. Check standard/non-standard form
-```
-GET /api/check/:word
-```
-
-**Example:**
-```bash
-curl https://your-worker.workers.dev/api/check/rumah
-```
-
-**Response:**
-```json
-{
-  "is_standard": true,
-  "word": "rumah",
-  "non_standard_forms": ["ruma"]
-}
-```
-
-### 4. Get similar words (typo suggestions)
-```
-GET /api/similar/:word?limit=5
-```
-
-**Example:**
-```bash
-curl https://your-worker.workers.dev/api/similar/rumh?limit=5
-```
-
-**Response:**
-```json
-{
-  "word": "rumh",
-  "suggestions": [
-    { "word": "rumah", "distance": 1 },
-    { "word": "ruma", "distance": 1 }
-  ]
-}
-```
-
-### 5. Search words
-```
-GET /api/search?q=query&limit=10
-```
-
-**Example:**
-```bash
-curl https://your-worker.workers.dev/api/search?q=rum&limit=10
-```
-
-**Response:**
-```json
-{
-  "query": "rum",
-  "count": 10,
-  "results": ["rumah", "rumania", "rumbia", ...]
-}
-```
-
-### 6. API Statistics
-```
-GET /api/stats
-```
-
-**Response:**
-```json
-{
-  "total_words": 112651,
-  "api_version": "1.0.0",
-  "endpoints": [...]
-}
-```
-
-## Deployment Guide
-
-### Prerequisites
-
-1. **Cloudflare Account**: Sign up at [cloudflare.com](https://cloudflare.com)
-2. **Wrangler CLI**: Already installed in this project
-3. **Node.js**: Version 18 or higher
-
-### Step 1: Prepare the Data
-
-Process the KBBI JSON files and create KV-ready data:
+## Quick start
 
 ```bash
-npm run prepare-data
+bun install
+bun run prepare-data   # builds kv-data/ from the raw dataset (one-off, ~1 min)
+bun run dev            # http://localhost:8080
 ```
 
-This will create:
-- `kv-data/` directory with processed data
-- Word index files
-- Non-standard word mappings
-- Bulk upload JSON files
-
-### Step 2: Create KV Namespace
+`prepare-data` needs the raw dataset at `kbbi-dataset-kbbi-v-main/json/`:
 
 ```bash
-npx wrangler kv:namespace create KBBI_DATA
+git clone https://github.com/damzaky/kumpulan-kata-bahasa-indonesia-KBBI.git
 ```
 
-You'll get output like:
-```
-{ binding = "KBBI_DATA", id = "xxxxxxxxxxxxx" }
-```
+## Endpoints
 
-For preview (development):
-```bash
-npx wrangler kv:namespace create KBBI_DATA --preview
-```
+All lookups are case-insensitive. Errors are JSON.
 
-### Step 3: Update wrangler.toml
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/lookup/:word` | Does the dictionary have this word? |
+| `GET /api/word/:word` | Full entry: meanings, word class, etymology, examples |
+| `GET /api/check/:word` | Is it standard, non-standard, or unknown? |
+| `GET /api/similar/:word?limit=n` | Typo suggestions (Levenshtein ≤ 3) |
+| `GET /api/search?q=&limit=n` | Prefix and substring search |
+| `GET /api/stats` | Word and non-standard form counts |
 
-Edit `wrangler.toml` and replace the KV namespace IDs:
-
-```toml
-[[kv_namespaces]]
-binding = "KBBI_DATA"
-id = "your_production_namespace_id"
-preview_id = "your_preview_namespace_id"
-```
-
-### Step 4: Upload Data to KV
-
-Upload the processed data to Cloudflare KV:
+`limit` defaults to 10 and is capped at 100. A missing or unparseable value
+falls back to the default rather than failing the request.
 
 ```bash
-cd kv-data
+curl localhost:8080/api/lookup/keluarga
+# {"exists":true,"word":"keluarga"}
 
-# Set your namespace ID
-export KV_NAMESPACE_ID="your_namespace_id"
+curl localhost:8080/api/check/ritma
+# {"word":"ritma","is_standard":false,"standard_form":"ritme"}
 
-# Upload using the generated script
-./upload-to-kv.sh
+curl 'localhost:8080/api/similar/kelakuam?limit=2'
+# {"word":"kelakuam","suggestions":[{"word":"kelakuan","distance":1},...]}
+
+curl 'localhost:8080/api/search?q=kelak&limit=3'
+# {"query":"kelak","count":3,"results":["kelak","kelak-kelik","kelak-keluk"]}
 ```
 
-Or upload manually using the bulk upload files:
+## Why `check` has three answers, not two
+
+`is_standard` is `true`, `false`, or `null`. The `null` is load-bearing: it says
+the dictionary has no entry for the word, which is a different claim from `false`
+("the dictionary judged it and found it non-standard"). Collapsing them would
+mean reporting unknown words as misspelled.
+
+`bentuk_tidak_baku` outranks entry presence. 3,061 of the 3,619 mapped forms also
+have entries of their own — most because that entry is a bare cross-reference
+(`ritma` → `ritme`) with no definition of its own. Judging by entry presence alone
+reported `abadiat` as standard when the dataset says otherwise.
+
+## Architecture
+
+```
+src/
+  server.ts                    entrypoint — construction, nothing else
+  http/router.ts               path/query → dictionary calls; one route table
+  dictionary/dictionary.ts     Dictionary interface + in-memory implementation
+  domain/levenshtein.ts        edit distance, pure
+  domain/types.ts              entry shapes
+  data/load-dictionary.ts      reads kv-data/ once at boot
+scripts/prepare-data.ts        dataset → kv-data/ (build-time only)
+tests/                        41 tests, no network, no fixtures on disk
+```
+
+Four layers, dependencies pointing inward only: `http` → `dictionary` →
+`domain`. `data` is a constructor detail of `server.ts`, not a layer the domain
+knows about. The `Dictionary` interface is what lets the router and the
+dictionary be tested against a four-word fake.
+
+The dictionary loads the whole dataset into memory at boot (~1s) and is
+read-only afterwards. Boot **fails loudly** if the dump is missing or truncated —
+a silently empty dictionary answers `{"exists": false}` to every word while
+looking perfectly healthy.
+
+Case normalisation lives in the dictionary, not the router, because the
+lowercase-index invariant is owned there. Doing it in both places would mean two
+answers whenever only one is updated.
+
+## Configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `8080` | Listen port |
+| `KBBI_DATA_DIR` | `./kv-data` | Dump location |
+
+## Deploy
+
+Production is the **imrnes VPS**, running the Docker image. It is not deployed to
+the Orange box and not published to Cloudflare — the upstream project was a
+Workers deployment, and this is a self-hosted Node/Bun service instead.
 
 ```bash
-npx wrangler kv:bulk put kv-data/bulk_upload_1.json --namespace-id=your_namespace_id
-npx wrangler kv:bulk put kv-data/bulk_upload_2.json --namespace-id=your_namespace_id
-# ... continue for all bulk files
+git clone <repo> /opt/kbbi-api && cd /opt/kbbi-api
+# The dump is baked into the image, so the dataset must be present:
+git clone --depth 1 https://github.com/damzaky/kumpulan-kata-bahasa-indonesia-KBBI.git kbbi-dataset-kbbi-v-main
+docker compose up -d --build
+curl -sf http://127.0.0.1:4020/api/stats
 ```
 
-### Step 5: Test Locally
+The service listens on `127.0.0.1:4020` on the host (container `8080`) —
+deliberately not 8080, which GMW's backend already holds on that host. Put nginx
+or Caddy in front for TLS if it should be reachable publicly.
+
+Because the dump is baked in, a dictionary refresh is a **rebuild**, not a
+restart. The image runs unprivileged with a read-only root and a 512MB cap, and
+its healthcheck asserts the dictionary actually loaded (`total_words` ≥ 100,000)
+rather than just that the port answers.
+
+### Nix
+
+Also packaged with Nix, for hosts that prefer the store:
 
 ```bash
-npm run dev
+nix build .#server      # typecheck + tests run inside the derivation
+nix build .#dictionary  # just the generated dump
+./result/bin/kbbi-api   # KBBI_DATA_DIR wired to the store path
+nix develop             # dev shell with bun + node
 ```
 
-Visit `http://localhost:8787` to test the API locally.
-
-### Step 6: Deploy to Cloudflare
+## Development
 
 ```bash
-npm run deploy
+bun run typecheck    # tsc --noEmit
+bun test             # 41 tests
+bun run check        # both
 ```
 
-Your API will be deployed to `https://kbbi-api.your-subdomain.workers.dev`
+CI (`.github/workflows/ci.yml`) runs four jobs: typecheck + tests + a live smoke
+test, a Nix build, a Docker build-and-smoke-test, and — on `main` only — a deploy
+to imrnes followed by a verification request against the live service.
 
-## Usage in React Native App
+## Data source
 
-```javascript
-const KBBI_API_URL = 'https://your-worker.workers.dev';
+[`damzaky/kumpulan-kata-bahasa-indonesia-KBBI`](https://github.com/damzaky/kumpulan-kata-bahasa-indonesia-KBBI),
+following [baguskto/kbbi-api](https://github.com/baguskto/kbbi-api) for the
+endpoint shape.
 
-// Check if word exists
-async function checkWord(word) {
-  const response = await fetch(`${KBBI_API_URL}/api/lookup/${word}`);
-  return response.json();
-}
+All data is owned by Badan Pengembangan dan Pembinaan Bahasa, Kementerian
+Pendidikan, Kebudayaan, Riset, dan Teknologi Republik Indonesia. Non-commercial use
+only — see the dataset README.
 
-// Get word details
-async function getWordDetails(word) {
-  const response = await fetch(`${KBBI_API_URL}/api/word/${word}`);
-  return response.json();
-}
-
-// Get typo suggestions
-async function getSuggestions(word) {
-  const response = await fetch(`${KBBI_API_URL}/api/similar/${word}?limit=5`);
-  return response.json();
-}
-
-// Search words
-async function searchWords(query) {
-  const response = await fetch(`${KBBI_API_URL}/api/search?q=${query}&limit=10`);
-  return response.json();
-}
-```
-
-## Performance Optimization
-
-- **KV Storage**: All words are cached in Cloudflare KV (low-latency key-value store)
-- **Edge Network**: Deployed globally for minimal latency
-- **HTTP Caching**: Response caching with appropriate `Cache-Control` headers
-- **CORS**: Pre-configured for cross-origin requests
-
-## Monitoring
-
-View logs and analytics:
-
-```bash
-npx wrangler tail
-```
-
-Or visit the Cloudflare Dashboard for detailed analytics.
-
-## Cost Estimate
-
-Cloudflare Workers Free Tier includes:
-- 100,000 requests/day
-- Unlimited KV reads
-- 1,000 KV writes/day
-- 1 GB KV storage
-
-This should be sufficient for development and moderate production use.
-
-## Data Source
-
-KBBI dataset from: [kbbi-dataset-kbbi-v-main](https://github.com/damzaky/kumpulan-kata-bahasa-indonesia-KBBI)
-
-**Copyright:** All data is owned by Badan Pengembangan dan Pembinaan Bahasa, Kementerian Pendidikan, Kebudayaan, Riset, dan Teknologi Republik Indonesia.
-
-**License:** Non-commercial use only. See dataset README for details.
-
-## Troubleshooting
-
-### KV Upload Fails
-
-If bulk upload fails due to size limits, split the data into smaller chunks or use individual key uploads.
-
-### Workers Deployment Fails
-
-- Ensure you're logged in: `npx wrangler login`
-- Check your Cloudflare account has Workers enabled
-- Verify wrangler.toml configuration
-
-### Data Not Found
-
-- Verify KV namespace is correctly bound in wrangler.toml
-- Check data was uploaded successfully: `npx wrangler kv:key list --namespace-id=your_id`
-
-## Next Steps
-
-After deployment:
-1. Test all endpoints with real data
-2. Integrate with React Native app
-3. Add rate limiting if needed
-4. Set up custom domain (optional)
-5. Monitor usage and performance
-
-## Support
-
-For issues or questions, please refer to:
-- [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
-- [Wrangler CLI Docs](https://developers.cloudflare.com/workers/wrangler/)
+MIT for the code; the data carries its own terms.

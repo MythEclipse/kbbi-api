@@ -1,0 +1,218 @@
+name: Test & Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: kbbi-api-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install deps
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: ./node_modules/.bin/tsc --noEmit
+
+      - name: Test
+        run: bun test
+
+      # The 143MB upstream dataset is not committed (see .gitignore), so every
+      # job that prepares a dump has to fetch it first. Sparse-checkout just
+      # json/ — the csv/ half is 21MB that nothing in this repo reads.
+      - name: Fetch the KBBI dataset
+        run: |
+          git clone --filter=blob:none --sparse --depth 1 \
+            https://github.com/baguskto/kbbi-api.git kbbi-dataset-kbbi-v-main
+          cd kbbi-dataset-kbbi-v-main
+          git sparse-checkout set kbbi-dataset-kbbi-v-main/json
+          ls kbbi-dataset-kbbi-v-main/json
+
+      # The dump is generated, not committed, so nothing in tests/ can catch a
+      # dataset that no longer prepares cleanly. Build it here and assert the
+      # counts, so a bad upstream refresh fails CI instead of producing an image
+      # that answers "not a word" for all 112,645 words.
+      - name: Prepare dictionary and verify counts
+        run: |
+          bun run scripts/prepare-data.ts
+          WORDS=$(bun -e 'const i = await Bun.file("kv-data/__index_words__.json").json(); console.log(i.length)')
+          FORMS=$(bun -e 'const n = await Bun.file("kv-data/__index_non_standard__.json").json(); console.log(Object.keys(n).length)')
+          echo "dictionary: $WORDS words, $FORMS non-standard forms"
+          [ "$WORDS" -gt 100000 ] || { echo "FAIL: only $WORDS words — dump is truncated"; exit 1; }
+          [ "$FORMS" -gt 1000 ] || { echo "FAIL: only $FORMS non-standard forms — dump is truncated"; exit 1; }
+
+      # Boot the real server against the prepared dump and exercise the
+      # endpoints over HTTP. Unit tests use a four-word fake; this is the only
+      # check that the wiring between the loader, the router and the socket
+      # actually holds together on the real 112k dataset.
+      - name: Smoke test the running service
+        run: |
+          PORT=8080 bun run src/server.ts &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/api/stats >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8080/api/stats | tee /dev/stderr | grep -q '"total_words":11[0-9][0-9][0-9][0-9]'
+          curl -sf http://127.0.0.1:8080/api/lookup/keluarga | grep -q '"exists":true'
+          curl -sf http://127.0.0.1:8080/api/check/ritma | grep -q '"is_standard":false'
+          curl -sf http://127.0.0.1:8080/api/check/keluarga | grep -q '"is_standard":true'
+          curl -sf 'http://127.0.0.1:8080/api/similar/kelakuam?limit=1' | grep -q '"word":"kelakuan"'
+          # A malformed escape must 404, not kill the process: an uncaught
+          # URIError in the handler takes the whole process down.
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/word/kel%2)" = "404" ]
+          # ...and the service must still be alive afterwards.
+          curl -sf http://127.0.0.1:8080/api/stats >/dev/null
+
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          determinate: false
+          extra-conf: |
+            sandbox = false
+            accept-flake-config = true
+
+      # No dataset clone needed here: the flake fetches it itself via
+      # `pkgs.fetchFromGitHub` (pinned to a commit), so the dictionary is a
+      # proper store dependency rather than something the runner supplies.
+      - name: Build the Nix package
+        # Runs the full typecheck + test suite inside the derivation, so a Nix
+        # build failing and CI passing cannot happen.
+        run: nix build .#server --impure --option sandbox false --print-build-logs
+
+  docker:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # The Dockerfile COPYs kbbi-dataset-kbbi-v-main/json and generates the dump
+      # from it, so it must exist in the build context.
+      - name: Fetch the KBBI dataset
+        run: |
+          git clone --filter=blob:none --sparse --depth 1 \
+            https://github.com/baguskto/kbbi-api.git kbbi-dataset-kbbi-v-main
+          cd kbbi-dataset-kbbi-v-main
+          git sparse-checkout set kbbi-dataset-kbbi-v-main/json
+
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          load: true
+          tags: kbbi-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Run the built image and hit it over HTTP. `docker build` succeeding only
+      # proves the layers assembled; this proves the container boots, finds its
+      # baked dictionary and answers correctly.
+      - name: Smoke test the image
+        run: |
+          docker run -d --name kbbi-api-test -p 127.0.0.1:4020:8080 kbbi-api:latest
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4020/api/stats >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:4020/api/stats | tee /dev/stderr | grep -q '"total_words":11[0-9][0-9][0-9][0-9]'
+          curl -sf http://127.0.0.1:4020/api/word/keluarga | grep -q '"status":"success"'
+          curl -sf http://127.0.0.1:4020/api/check/ritma | grep -q '"standard_form":"ritme"'
+          docker rm -f kbbi-api-test
+
+  deploy:
+    needs: docker
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Prod is the imrnes VPS (a Nix/GMW host), not the Orange box. The service
+      # runs there as a container, so the deploy is a compose up against a
+      # checked-out repo — no Nix store path, no profile switch.
+      - name: Setup SSH key
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          sed -i 's/\r$//' ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1 || { echo "SSH key invalid"; exit 1; }
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy to imrnes
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh "$VPS_USER@$VPS_HOST" 'set -e
+            cd /opt/kbbi-api
+            git fetch --all --tags
+            git checkout '"$(git rev-parse HEAD)"'
+            # The dataset is fetched, not vendored; prepare it if this checkout
+            # does not have it. Only json/ is needed (see Dockerfile).
+            test -d kbbi-dataset-kbbi-v-main/json \
+              || (git clone --filter=blob:none --sparse --depth 1 \
+                    https://github.com/baguskto/kbbi-api.git kbbi-dataset-kbbi-v-main \
+                  && cd kbbi-dataset-kbbi-v-main \
+                  && git sparse-checkout set kbbi-dataset-kbbi-v-main/json)
+            docker compose up -d --build
+            docker compose ps
+          '
+
+      - name: Verify the deployed service
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          # Poll rather than sleep: the container needs ~40s to load 74MB of
+          # JSON, and a blind sleep would either waste time or race the boot.
+          ssh "$VPS_USER@$VPS_HOST" '
+            for i in $(seq 1 45); do
+              if curl -sf http://127.0.0.1:4020/api/stats >/dev/null 2>&1; then break; fi
+              sleep 2
+            done
+            echo "--- stats ---"
+            curl -sf http://127.0.0.1:4020/api/stats
+            echo
+            curl -sf http://127.0.0.1:4020/api/check/ritma
+            echo
+            curl -sf http://127.0.0.1:4020/api/lookup/keluarga
+            echo
+            docker compose -f /opt/kbbi-api/compose.yml ps
+          '

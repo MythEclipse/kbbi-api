@@ -1,7 +1,17 @@
+# Generated dictionary dump — 74MB, rebuilt by `bun run prepare-data` and by
+# the Docker/Nix builds. Never committed.
+kv-data/
+
+# The upstream KBBI dataset (~143MB) is fetched by CI and by the deploy script
+# rather than committed. The upstream repo is the source of truth; a vendored
+# copy would bloat this repo's history and go stale silently. See the dataset
+# checkout step in .github/workflows/ci.yml and the README deploy section.
+kbbi-dataset-kbbi-v-main/
+
 node_modules/
 dist/
 .wrangler/
-kv-data/
+result
 *.log
 .env
 .DS_Store
