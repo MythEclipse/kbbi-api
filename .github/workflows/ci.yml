@@ -188,13 +188,27 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           sed -i 's/\r$//' ~/.ssh/id_ed25519
           ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1 || { echo "SSH key invalid"; exit 1; }
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # `ssh-keyscan` exits 0 even when it reaches nothing, so it is not a
+          # reachability test — an unreachable host silently produced an empty
+          # known_hosts and the step died later, at an unrelated command, with a
+          # misleading error. Probe with ssh itself and fail here with the real
+          # reason.
+          if ! ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+               -o ConnectTimeout=15 "$VPS_USER@$VPS_HOST" true; then
+            echo "::error::cannot SSH to $VPS_USER@$VPS_HOST."
+            echo "If that address is Tailscale-only (100.64.0.0/10), a"
+            echo "GitHub-hosted runner has no route to it: join the tailnet with"
+            echo "the OIDC action first, or set VPS_HOST to a publicly reachable"
+            echo "address."
+            exit 1
+          fi
 
       # Every deploy starts from nothing. The service is a read-only dictionary
       # with no database, no Redis and no volumes, so there is no state worth
