@@ -9,6 +9,7 @@ const CHUNK_PREFIX = "bulk_upload_";
 /** Index files written by the prepare step. */
 const WORD_INDEX_FILE = "__index_words__.json";
 const VARIANT_INDEX_FILE = "__index_non_standard__.json";
+const PHRASE_INDEX_FILE = "__index_phrases__.json";
 
 /** One `{key, value}` pair from a dump chunk; `value` is a JSON string. */
 interface DumpPair {
@@ -65,6 +66,13 @@ export function loadDictionary(dataDirectory: string): Dictionary {
     join(dataDirectory, VARIANT_INDEX_FILE),
     {},
   );
+  // Missing on dumps prepared before the phrase index existed. An old dump
+  // still answers every word endpoint correctly, so the phrase list degrades
+  // to empty rather than failing boot — only `/api/phrases` goes empty.
+  const phrases = readJsonFile<string[]>(
+    join(dataDirectory, PHRASE_INDEX_FILE),
+    [],
+  );
 
   // No index means no dump was prepared, and a `[]` fallback here would let
   // boot succeed with an empty dictionary — every lookup answering "not a
@@ -95,5 +103,5 @@ export function loadDictionary(dataDirectory: string): Dictionary {
     );
   }
 
-  return new InMemoryDictionary(entries, index, nonStandard);
+  return new InMemoryDictionary(entries, index, nonStandard, phrases);
 }

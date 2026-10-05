@@ -160,6 +160,24 @@ describe("stats", () => {
     expect(fakeDictionary().stats()).toEqual({
       total_words: 4,
       non_standard_forms: 2,
+      total_phrases: 0,
     });
+  });
+});
+
+describe("phrases", () => {
+  it("returns the phrase index given at construction", () => {
+    const withPhrases = new InMemoryDictionary(
+      new Map([["kambing hitam", record("kambing hitam")]]),
+      ["kambing hitam"],
+      {},
+      ["kambing hitam"],
+    );
+    expect(withPhrases.phrases()).toEqual(["kambing hitam"]);
+    expect(withPhrases.stats().total_phrases).toBe(1);
+  });
+
+  it("defaults to empty when no phrase index is passed", () => {
+    expect(fakeDictionary().phrases()).toEqual([]);
   });
 });

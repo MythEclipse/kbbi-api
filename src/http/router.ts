@@ -90,6 +90,7 @@ const ENDPOINTS = [
   "GET /api/similar/:word?limit=n",
   "GET /api/search?q=&limit=n",
   "GET /api/words?words=a&words=b",
+  "GET /api/phrases",
   "GET /api/stats",
 ];
 
@@ -115,6 +116,14 @@ export function createRequestHandler(
     stats: {
       word: false,
       handle: () => ({ status: 200, body: dictionary.stats() }),
+    },
+
+    phrases: {
+      word: false,
+      handle: () => ({
+        status: 200,
+        body: { count: dictionary.phrases().length, phrases: dictionary.phrases() },
+      }),
     },
 
     lookup: {

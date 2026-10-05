@@ -13,6 +13,7 @@
  * Output, consumed by `src/data/load-dictionary.ts`:
  *   kv-data/__index_words__.json        string[]           every headword
  *   kv-data/__index_non_standard.json   Record<form, word> colloquial → standard
+ *   kv-data/__index_phrases__.json      string[]           multi-word headwords
  *   kv-data/bulk_upload_N.json          [{key, value}]     entries, chunked
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -59,6 +60,31 @@ function findDatasetParts(): string[] {
     .sort();
 }
 
+/** Longest phrase headword in the dataset is 48 chars after this filter. */
+const MAX_PHRASE_TOKENS = 4;
+
+/**
+ * Whether a headword is a phrase a client can match inside running text.
+ *
+ * Multi-word headwords are where KBBI meaning diverges from the words a
+ * client would look up one by one ("kambing hitam" ≠ kambing + hitam), so
+ * the moderation gateway needs their whole list. Three exclusions keep the
+ * list to things a sentence can contain:
+ *   - parenthesised heads are cross-references with a placeholder slot
+ *     ("(sbg durian) pangsa menunjukkan bangsa"), not phrases a user types;
+ *   - stricture exceptions: none — anything with a paren also fails the
+ *     token filter below only when it is a single slot;
+ *   - very long peribahasas up to 18 tokens would never match a message and
+ *     bloat the payload, so two-to-four words is the working band
+ *     (covers 36,546 of 37,468 phrase keys).
+ */
+function isMatchablePhrase(key: string): boolean {
+  if (!key.includes(" ")) return false;
+  if (key.includes("(")) return false;
+  const tokens = key.split(/\s+/);
+  return tokens.length >= 2 && tokens.length <= MAX_PHRASE_TOKENS;
+}
+
 function main(): void {
   mkdirSync(OUTPUT_DIRECTORY, { recursive: true });
 
@@ -73,6 +99,7 @@ function main(): void {
 
   const headwords: string[] = [];
   const nonStandardForms: Record<string, string> = {};
+  const phraseHeadwords: string[] = [];
   let chunk: { key: string; value: string }[] = [];
   let chunkNumber = 1;
 
@@ -98,6 +125,7 @@ function main(): void {
     for (const [headword, record] of Object.entries(records)) {
       const key = headword.toLowerCase();
       headwords.push(key);
+      if (isMatchablePhrase(key)) phraseHeadwords.push(key);
       chunk.push({ key, value: JSON.stringify(record) });
       if (chunk.length >= CHUNK_SIZE) flushChunk();
     }
@@ -107,6 +135,7 @@ function main(): void {
   // Sorted and deduplicated so `search` returns a stable order, and so the
   // loader's completeness check compares against a count no duplicate inflates.
   const uniqueWords = [...new Set(headwords)].sort();
+  const uniquePhrases = [...new Set(phraseHeadwords)].sort();
   writeFileSync(
     join(OUTPUT_DIRECTORY, "__index_words__.json"),
     JSON.stringify(uniqueWords),
@@ -115,10 +144,15 @@ function main(): void {
     join(OUTPUT_DIRECTORY, "__index_non_standard__.json"),
     JSON.stringify(nonStandardForms),
   );
+  writeFileSync(
+    join(OUTPUT_DIRECTORY, "__index_phrases__.json"),
+    JSON.stringify(uniquePhrases),
+  );
 
   console.log(
     `done: ${uniqueWords.length} unique words, ` +
       `${Object.keys(nonStandardForms).length} non-standard forms, ` +
+      `${uniquePhrases.length} phrases, ` +
       `${chunkNumber - 1} chunks`,
   );
 }

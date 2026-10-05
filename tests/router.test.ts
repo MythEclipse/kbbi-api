@@ -57,7 +57,14 @@ describe("routing", () => {
     expect(capture("/api/stats").body).toEqual({
       total_words: 2,
       non_standard_forms: 0,
+      total_phrases: 0,
     });
+  });
+
+  it("answers /api/phrases", () => {
+    const response = capture("/api/phrases");
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({ count: 0, phrases: [] });
   });
 
   it("404s an unknown word with a machine-readable status", () => {

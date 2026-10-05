@@ -21,7 +21,13 @@ export interface Dictionary {
   check(word: string): StandardnessResult;
   findSimilar(word: string, limit: number): Suggestion[];
   search(query: string, limit: number): SearchResult;
-  stats(): { total_words: number; non_standard_forms: number };
+  /** All phrase headwords (multi-word entries), for client-side matching. */
+  phrases(): string[];
+  stats(): {
+    total_words: number;
+    non_standard_forms: number;
+    total_phrases: number;
+  };
 }
 
 /**
@@ -42,6 +48,7 @@ export class InMemoryDictionary implements Dictionary {
     private readonly entries: ReadonlyMap<string, EntryRecord>,
     private readonly index: readonly string[],
     private readonly nonStandard: Readonly<Record<string, string>>,
+    private readonly phraseIndex: readonly string[] = [],
   ) {}
 
   exists(word: string): LookupResult {
@@ -103,10 +110,22 @@ export class InMemoryDictionary implements Dictionary {
     return { query: needle, count: matches.length, results: matches };
   }
 
+  /**
+   * Phrase headwords (multi-word entries) in the same sorted order the word
+   * index keeps. A client that needs longest-match-first phrase detection in
+   * running text reads this list once and slides a window over the message —
+   * the 37k phrases are only useful if the client never has to ask the server
+   * per span.
+   */
+  phrases(): string[] {
+    return [...this.phraseIndex];
+  }
+
   stats() {
     return {
       total_words: this.index.length,
       non_standard_forms: Object.keys(this.nonStandard).length,
+      total_phrases: this.phraseIndex.length,
     };
   }
 }
