@@ -24,7 +24,7 @@ jobs:
       # The pnpm version comes from the `packageManager` field in package.json,
       # so the action and the lockfile it installs from cannot drift apart.
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node
         uses: actions/setup-node@v4
