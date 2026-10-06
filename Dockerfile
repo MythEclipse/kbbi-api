@@ -49,7 +49,13 @@ RUN pnpm test 2>&1 | tee /tmp/vitest.log
 # `Test Files` line first and would assert on 3 instead of the test count. 50 is
 # the count this guard was written against — a suite that silently shrinks below
 # it is a failure, not a pass.
-RUN COUNT=$(grep -E '^[[:space:]]*Tests[[:space:]]' /tmp/vitest.log | grep -oE '[0-9]+' | head -1) \
+# The colour codes go first: pnpm hands vitest a colour-capable stdout even
+# through `tee`, so the row starts with an escape byte and `^[[:space:]]*Tests`
+# never matches it. Without the strip COUNT stays empty, `${COUNT:-0}` is 0, and
+# the guard fails a suite that just reported 50 passing.
+RUN COUNT=$(sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/vitest.log \
+ | grep -E '^[[:space:]]*Tests[[:space:]]' \
+ | grep -oE '[0-9]+' | head -1) \
  && [ "${COUNT:-0}" -ge 50 ] \
  || { echo "FAIL: expected at least 50 passing tests, saw ${COUNT:-0}"; exit 1; }
 
