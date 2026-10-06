@@ -78,9 +78,14 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 # tini reaps zombies and forwards SIGTERM, so `docker stop` reaches node and the
 # container exits promptly instead of waiting out the 10s kill timeout.
+# Debian's package ships /usr/bin/tini and nothing under /sbin — it is Alpine's
+# apk that put it there, and the ENTRYPOINT kept pointing at the old path after
+# the base image changed, so the container died on start with "stat /sbin/tini:
+# no such file or directory". The test fails the build instead of the smoke test.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends tini ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && test -x /usr/bin/tini
 
 # Run unprivileged. The image needs no write access at runtime: the dump is
 # baked in and read-only, and the service writes nothing to disk.
@@ -114,7 +119,7 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD node -e 'fetch("http://127.0.0.1:8080/api/stats").then(r => r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status))).then(s => { if (s.total_words < 100000) { console.error("dictionary incomplete: " + s.total_words); process.exit(1); } }).catch(e => { console.error(e); process.exit(1); })'
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 # tsx executes the TypeScript sources directly — no compile step and no dist/
 # to keep in sync. The .bin shim is a POSIX script, so tini can exec it without
 # a shell of its own.
