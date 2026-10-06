@@ -1,0 +1,24 @@
+# Dependabot version updates.
+#
+# package.json here is managed by pnpm, but Dependabot has no `pnpm`
+# ecosystem value: GitHub maps the pnpm package manager to the `npm` YAML
+# value and detects pnpm-lock.yaml from it. `package-ecosystem: "pnpm"` would
+# make the whole file invalid — an unknown ecosystem is rejected outright, so
+# Dependabot would stop running for this repository instead of just failing to
+# find a pnpm entry.
+# https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories
+version: 2
+updates:
+  # package.json + pnpm-lock.yaml at the repository root.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  # actions/* references in .github/workflows/ci.yml.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10

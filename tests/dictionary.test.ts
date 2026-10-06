@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { InMemoryDictionary } from "../src/dictionary/dictionary.js";
 import type { EntryRecord } from "../src/domain/types.js";
 

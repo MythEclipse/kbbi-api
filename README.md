@@ -1,7 +1,8 @@
 # KBBI API
 
 Self-hosted REST API over the Indonesian dictionary (KBBI) — 112,645 headwords,
-3,619 non-standard forms. Built with [Bun](https://bun.sh) and TypeScript, zero
+3,619 non-standard forms. Built with [Node.js](https://nodejs.org),
+[TypeScript](https://www.typescriptlang.org) and [pnpm](https://pnpm.io), zero
 runtime dependencies.
 
 Built as a grounding reference for an LLM moderation pipeline: when a model
@@ -11,9 +12,9 @@ it.
 ## Quick start
 
 ```bash
-bun install
-bun run prepare-data   # builds kv-data/ from the raw dataset (one-off, ~1 min)
-bun run dev            # http://localhost:8080
+pnpm install
+pnpm run prepare-data  # builds kv-data/ from the raw dataset (one-off, ~1 min)
+pnpm run dev           # http://localhost:8080
 ```
 
 `prepare-data` needs the raw dataset at `kbbi-dataset-kbbi-v-main/json/`:
@@ -75,7 +76,7 @@ src/
   domain/types.ts              entry shapes
   data/load-dictionary.ts      reads kv-data/ once at boot
 scripts/prepare-data.ts        dataset → kv-data/ (build-time only)
-tests/                        41 tests, no network, no fixtures on disk
+tests/                        50 tests, no network, no fixtures on disk
 ```
 
 Four layers, dependencies pointing inward only: `http` → `dictionary` →
@@ -103,7 +104,7 @@ answers whenever only one is updated.
 
 Production is the **imrnes VPS**, running the Docker image. It is not deployed to
 the Orange box and not published to Cloudflare — the upstream project was a
-Workers deployment, and this is a self-hosted Node/Bun service instead.
+Workers deployment, and this is a self-hosted Node service instead.
 
 The `deploy` CI job is gated on the repository variable `DEPLOY_ENABLED` being
 `true`, and additionally needs three repository secrets: `VPS_HOST`, `VPS_USER`
@@ -179,9 +180,9 @@ nix develop             # dev shell with bun + node
 ## Development
 
 ```bash
-bun run typecheck    # tsc --noEmit
-bun test             # 41 tests
-bun run check        # both
+pnpm run typecheck   # tsc --noEmit
+pnpm test            # 50 tests
+pnpm run check       # both
 ```
 
 CI (`.github/workflows/ci.yml`) runs four jobs: typecheck + tests + a live smoke

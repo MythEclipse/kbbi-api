@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { InMemoryDictionary } from "../src/dictionary/dictionary.js";
 import { createRequestHandler } from "../src/http/router.js";

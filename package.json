@@ -5,20 +5,27 @@
   "type": "module",
   "description": "Self-hosted KBBI (Indonesian dictionary) REST API — 112,645 words, zero runtime dependencies.",
   "license": "MIT",
-  "scripts": {
-    "start": "bun run src/server.ts",
-    "dev": "bun --watch run src/server.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "bun test",
-    "check": "bun run typecheck && bun test",
-    "prepare-data": "bun run scripts/prepare-data.ts"
-  },
+  "packageManager": "pnpm@10.33.2",
   "engines": {
-    "bun": ">=1.4.0"
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "pnpm run typecheck && pnpm run test",
+    "prepare-data": "tsx scripts/prepare-data.ts"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   },
   "devDependencies": {
-    "@types/bun": "^1.2.0",
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.0"
+    "tsx": "^4.23.15",
+    "typescript": "^5.7.0",
+    "vitest": "^5.0.3"
   }
 }

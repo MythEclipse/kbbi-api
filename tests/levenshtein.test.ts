@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { editDistance, findTypos } from "../src/domain/levenshtein.js";
 
 describe("editDistance", () => {

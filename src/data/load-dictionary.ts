@@ -80,7 +80,7 @@ export function loadDictionary(dataDirectory: string): Dictionary {
   if (index.length === 0) {
     throw new Error(
       `no word index at ${join(dataDirectory, WORD_INDEX_FILE)}. ` +
-        `Run the prepare step first: bun run prepare-data`,
+        `Run the prepare step first: pnpm run prepare-data`,
     );
   }
 
