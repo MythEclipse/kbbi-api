@@ -132,7 +132,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # The Dockerfile COPYs kbbi-dataset-kbbi-v-main/json and generates the dump
       # from it, so it must exist in the build context with exactly that shape.
