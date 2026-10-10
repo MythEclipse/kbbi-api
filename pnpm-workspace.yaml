@@ -1,6 +1,11 @@
-packages:
-  - "apps/*"
-
-# See hub/GMW: Dependabot uses its own pnpm (11+), default minimumReleaseAge
-# 1440min, which refuses same-day releases and fails the whole update job.
+# kbbi-api is a SINGLE-package repo: the root package.json IS the project and
+# there is no apps/ or packages/ directory. So this file carries no `packages:`
+# globs — only the settings that must survive a package-manager swap.
+#
+# Dependabot resolves and installs with its OWN bundled pnpm (11.x/12.x), ignoring
+# the `packageManager: pnpm@10.33.2` pin in package.json. Since pnpm 11 that
+# version defaults `minimumReleaseAge` to 1440 minutes, so any dependency
+# released within the last day is refused with
+# ERR_PNPM_NO_MATURE_MATCHING_VERSION and the entire update job dies.
+# Setting this to 0 makes the install succeed regardless of which pnpm runs.
 minimumReleaseAge: 0
