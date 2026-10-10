@@ -1,0 +1,6 @@
+packages:
+  - "apps/*"
+
+# See hub/GMW: Dependabot uses its own pnpm (11+), default minimumReleaseAge
+# 1440min, which refuses same-day releases and fails the whole update job.
+minimumReleaseAge: 0
