@@ -52,7 +52,7 @@ jobs:
       version: ${{ steps.publish.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # semantic-release reads every commit since the last tag to decide the
           # bump, so a shallow clone makes it see nothing and publish nothing.
@@ -106,7 +106,7 @@ jobs:
     outputs:
       images: ${{ steps.resolve.outputs.images }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - id: resolve
         env:
@@ -199,7 +199,7 @@ jobs:
       matrix:
         image: ${{ fromJSON(needs.prepare.outputs.images) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Build inputs that are fetched rather than committed. A repo whose
       # Dockerfile COPYs a gitignored dataset needs it in the checkout first, and
