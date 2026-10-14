@@ -216,7 +216,7 @@ jobs:
           set -Eeuo pipefail
           echo "$PREBUILD" | bash -euxo pipefail
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       # The default GITHUB_TOKEN is scoped to this repo's packages and is all a
       # publish needs. A PAT would work and would be a credential with a much
