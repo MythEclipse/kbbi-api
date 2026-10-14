@@ -222,7 +222,7 @@ jobs:
       # publish needs. A PAT would work and would be a credential with a much
       # wider blast radius than this job requires.
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
