@@ -126,7 +126,23 @@ jobs:
           # The image list is repo config, not a hardcoded matrix, so adding a
           # service is a one-line change rather than a workflow edit that can
           # conflict with whatever else is in flight.
-          images=$(jq -c '.images | map(select(.enabled != false))' .github/docker-images.json)
+          # build_args and labels are flattened to KEY=VALUE HERE, in prepare,
+          # not in a step of the publish job: toJSON() pretty-prints and GitHub
+          # renders a multi-line env value verbatim, so such a step never sees
+          # the single token it would need to split. The matrix carries them
+          # intact — newlines included, which is the format both consumers parse.
+          images=$(jq -c '
+            .images
+            | map(select(.enabled != false))
+            | map(
+                (if (.build_args | type) == "object" then
+                   .build_args = ([.build_args | to_entries[] | "\(.key)=\(.value)"] | join("\n"))
+                 else . end)
+                | (if (.labels | type) == "object" then
+                     .labels = ([.labels | to_entries[] | "\(.key)=\(.value)"] | join("\n"))
+                   else . end)
+              )
+          ' .github/docker-images.json)
           if [[ "$(jq 'length' <<<"$images")" -eq 0 ]]; then
             echo "::error::.github/docker-images.json enables no images"
             exit 1
@@ -227,11 +243,17 @@ jobs:
           # every ARG in the Dockerfile resolves empty and the build still
           # succeeds — a green run that configured nothing.
           build-args: ${{ matrix.image.build_args || '' }}
+          # Repo-supplied labels are appended, so an image can record facts the
+          # standard cannot know — which dataset revision it was built against,
+          # for instance. They were being dropped: docker-images.json accepted a
+          # `labels` key that this fixed list silently ignored, so a pinned input
+          # was documented in config and absent from the artifact.
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.release.outputs.version }}
             org.opencontainers.image.title=${{ matrix.image.package }}
+            ${{ matrix.image.labels || '' }}
           cache-from: type=gha,scope=${{ matrix.image.package }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image.package }}
 
