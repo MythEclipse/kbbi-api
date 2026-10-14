@@ -1,3 +1,10 @@
+## [1.0.6](https://github.com/asepharyana/kbbi-api/compare/v1.0.5...v1.0.6) (2026-10-14)
+
+
+### Bug Fixes
+
+* **ci:** actually attach the repo-supplied image labels ([16d21a3](https://github.com/asepharyana/kbbi-api/commit/16d21a3ba205345507adaa9a9f59f6b300f99c9f))
+
 ## [1.0.5](https://github.com/asepharyana/kbbi-api/compare/v1.0.4...v1.0.5) (2026-10-14)
 
 
