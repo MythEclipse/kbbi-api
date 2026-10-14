@@ -1,0 +1,9 @@
+{
+  "images": [
+    {
+      "package": "kbbi-api",
+      "context": ".",
+      "file": "Dockerfile"
+    }
+  ]
+}

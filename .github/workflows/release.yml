@@ -1,0 +1,63 @@
+name: Semantic Release
+
+# Derived from conventional commits on the default branch. Push a
+# `feat:`/`fix:` commit to main and this creates the tag, the GitHub Release and
+# the CHANGELOG entry — no human edits a version number anywhere.
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+# One release at a time, repo-wide. A per-ref group would let two concurrent
+# pushes both read the same "latest tag" and race to create the same version.
+concurrency:
+  group: semantic-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Dependabot's conventional commits produce noise, not intent. Release on a
+    # human-authored change only.
+    if: github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # semantic-release reads every commit since the last tag to decide the
+          # bump, so a shallow clone makes it see nothing and publish no
+          # release. Depth 0 is not an optimisation here, it is a requirement.
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Installed with --prefix, not as a devDependency: it must not touch
+      # package.json or the lockfile, because semantic-release commits
+      # package.json and a lockfile churn here would fight that commit.
+      - name: Install semantic-release
+        run: |
+          npm install --prefix "$RUNNER_TEMP/sr" --no-save \
+            semantic-release@^24 \
+            @semantic-release/changelog@^6 \
+            @semantic-release/exec@^6 \
+            @semantic-release/git@^10 \
+            @semantic-release/npm@^12
+          echo "$RUNNER_TEMP/sr/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # semantic-release reads this to build the GitHub Release and the npm
+          # links in the notes. Not used for publishing to a registry.
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: semantic-release

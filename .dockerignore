@@ -1,0 +1,42 @@
+# Build context exclusions for kbbi-api.
+#
+# Without this, `node_modules` (hundreds of MB after a pnpm install), the 143MB
+# dataset and the whole .git directory are sent as build context and, where the
+# Dockerfile has a matching COPY, copied into the image. The build gets slow and
+# the layer cache misses on every source edit.
+
+# Dependencies: reinstalled inside the image from the lockfile. Copying the host
+# tree would also carry absolute paths pnpm wrote for a different directory.
+node_modules
+.pnpm-store
+
+# Git history: not needed to build, and it changes on every commit, which would
+# invalidate the cache for the COPY steps above it.
+.git
+.gitignore
+.github
+
+# Generated dictionary dump (74MB). Rebuilt inside the builder stage by
+# `pnpm run prepare-data`, so shipping the host copy would both bloat the
+# context and risk baking a dump generated from a different dataset.
+kv-data
+
+# The upstream dataset is fetched by CI, not committed. It must be present in
+# the context for the builder's COPY, so it is deliberately NOT excluded here —
+# see the fetch step in .github/workflows/ci.yml.
+
+# Secrets and local noise
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# Docs and editor state
+*.md
+!README.md
+LICENSE
+.claude
+.hermes
+.idea
+.vscode
