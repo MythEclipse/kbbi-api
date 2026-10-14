@@ -4,7 +4,10 @@
       "package": "kbbi-api",
       "context": ".",
       "file": "Dockerfile",
-      "prebuild": "tmp=$(mktemp -d)\ngit clone --filter=blob:none --sparse --depth 1 https://github.com/baguskto/kbbi-api.git \"$tmp/dataset\"\ngit -C \"$tmp/dataset\" sparse-checkout set kbbi-dataset-kbbi-v-main/json\nmkdir -p kbbi-dataset-kbbi-v-main\nmv \"$tmp/dataset/kbbi-dataset-kbbi-v-main/json\" kbbi-dataset-kbbi-v-main/\nrm -rf \"$tmp\"\nls kbbi-dataset-kbbi-v-main/json"
+      "prebuild": "tmp=$(mktemp -d)\ngit clone --filter=blob:none --sparse https://github.com/baguskto/kbbi-api.git \"$tmp/dataset\"\ngit -C \"$tmp/dataset\" checkout 13fd4ea6f50baec4b756fb473d402f55307e0e71\ngit -C \"$tmp/dataset\" sparse-checkout set kbbi-dataset-kbbi-v-main/json\nmkdir -p kbbi-dataset-kbbi-v-main\nmv \"$tmp/dataset/kbbi-dataset-kbbi-v-main/json\" kbbi-dataset-kbbi-v-main/\nrm -rf \"$tmp\"\nls kbbi-dataset-kbbi-v-main/json",
+      "labels": {
+        "org.kbbi.dataset-revision": "13fd4ea6f50baec4b756fb473d402f55307e0e71"
+      }
     }
   ]
 }
