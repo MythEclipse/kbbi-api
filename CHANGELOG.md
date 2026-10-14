@@ -1,3 +1,10 @@
+## [1.0.5](https://github.com/asepharyana/kbbi-api/compare/v1.0.4...v1.0.5) (2026-10-14)
+
+
+### Bug Fixes
+
+* **ci:** pin the KBBI dataset revision instead of tracking main ([3709cb8](https://github.com/asepharyana/kbbi-api/commit/3709cb8072c4ddc66e57670d3fd1a9d1fa783822))
+
 ## [1.0.4](https://github.com/asepharyana/kbbi-api/compare/v1.0.3...v1.0.4) (2026-10-14)
 
 
