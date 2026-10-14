@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/asepharyana/kbbi-api/compare/v1.0.2...v1.0.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* **ci:** stop embedding the release notes in the release commit ([a0e88fe](https://github.com/asepharyana/kbbi-api/commit/a0e88feb16f425b518ff9a4479c5652b84dc67e0))
+
 ## [1.0.2](https://github.com/asepharyana/kbbi-api/compare/v1.0.1...v1.0.2) (2026-10-14)
 
 ## [1.0.1](https://github.com/asepharyana/kbbi-api/compare/v1.0.0...v1.0.1) (2026-10-14)
