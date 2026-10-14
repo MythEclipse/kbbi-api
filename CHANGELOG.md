@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/asepharyana/kbbi-api/compare/v1.0.3...v1.0.4) (2026-10-14)
+
+
+### Bug Fixes
+
+* **ci:** cap the release body, which GitHub limits to 125,000 chars ([503828b](https://github.com/asepharyana/kbbi-api/commit/503828b1d142a68c31a08fd762bed74ae0038b89))
+
 ## [1.0.3](https://github.com/asepharyana/kbbi-api/compare/v1.0.2...v1.0.3) (2026-10-14)
 
 
