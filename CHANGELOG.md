@@ -1,3 +1,19 @@
+# 1.0.0 (2026-10-14)
+
+
+### Bug Fixes
+
+* **ci:** fetch the dataset so json/ lands where the build expects it ([b2955ec](https://github.com/asepharyana/kbbi-api/commit/b2955ecc8d8a1b716aee6f7a124e507a97a9e901))
+* **ci:** pin bun to 1.4.2, the version that wrote bun.lock ([ab3c2df](https://github.com/asepharyana/kbbi-api/commit/ab3c2df2941ed04b6453cceef279c626a59f90eb))
+* **docker:** copy tests/ into the builder and assert the test count ([a4800a1](https://github.com/asepharyana/kbbi-api/commit/a4800a145dae646b0e2a3deb044d135c7be947fa))
+* **docker:** point the ENTRYPOINT at Debian's tini path ([4cd9428](https://github.com/asepharyana/kbbi-api/commit/4cd942829ccfaf1b2b7e99dddaa66d9225fe8019))
+
+
+### Features
+
+* add POST-free batch lookup, and bind to Tailscale ([a3195ea](https://github.com/asepharyana/kbbi-api/commit/a3195eae6a98deee3671b7e1e009218d717d3273))
+* index multi-word phrase headwords for phrase-aware lookup ([c694d94](https://github.com/asepharyana/kbbi-api/commit/c694d94680eac5914983f6d257789ed179d04356))
+
 # Changelog
 
 All notable changes to kbbi-api are documented here.
