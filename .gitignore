@@ -16,3 +16,8 @@ result
 .env
 .DS_Store
 .claude/
+.env.*
+*.bak
+*.bak.*
+package-lock.json
+.env.container
