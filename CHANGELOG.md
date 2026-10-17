@@ -1,3 +1,10 @@
+## [1.0.14](https://github.com/asepharyana/kbbi-api/compare/v1.0.13...v1.0.14) (2026-10-17)
+
+
+### Bug Fixes
+
+* **ci:** gate the deploy job on the ref, not the event ([89d7306](https://github.com/asepharyana/kbbi-api/commit/89d7306ba99b352a70df6802b5084ca778620ef6))
+
 ## [1.0.13](https://github.com/asepharyana/kbbi-api/compare/v1.0.12...v1.0.13) (2026-10-17)
 
 ## [1.0.12](https://github.com/asepharyana/kbbi-api/compare/v1.0.11...v1.0.12) (2026-10-14)
