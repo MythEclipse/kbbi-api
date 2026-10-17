@@ -178,9 +178,19 @@ jobs:
     environment: production
     # Skipped until the deploy secrets exist, so a fresh clone gets a green
     # pipeline for the parts that are set up instead of a red X on SSH config
-    # nobody has filled in yet. Remove this condition once VPS_HOST,
-    # VPS_USER and SSH_PRIVATE_KEY are set and the first real deploy has run.
-    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    # nobody has filled in yet.
+    #
+    # Both halves are needed. `DEPLOY_ENABLED` is a repository VARIABLE, and a
+    # Dependabot-triggered run still receives variables — what it does NOT
+    # receive is the repository secret store; GitHub hands it the Dependabot one
+    # instead. So with the variable alone, a Dependabot PR ran this job, got an
+    # empty `SSH_PRIVATE_KEY`, and died in "Setup SSH key" with a red X that no
+    # dependency bump could ever clear.
+    #
+    # The same reasoning as mcpedia: a PR must never deploy, and must not RUN the
+    # deploy job either, or every Dependabot PR wears a permanent red X that the
+    # queue worker then retries forever.
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
