@@ -1,3 +1,5 @@
+## [1.0.13](https://github.com/asepharyana/kbbi-api/compare/v1.0.12...v1.0.13) (2026-10-17)
+
 ## [1.0.12](https://github.com/asepharyana/kbbi-api/compare/v1.0.11...v1.0.12) (2026-10-14)
 
 ## [1.0.11](https://github.com/asepharyana/kbbi-api/compare/v1.0.10...v1.0.11) (2026-10-14)

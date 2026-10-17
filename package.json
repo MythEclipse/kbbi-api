@@ -1,6 +1,6 @@
 {
   "name": "kbbi-api",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "private": true,
   "type": "module",
   "description": "Self-hosted KBBI (Indonesian dictionary) REST API — 112,645 words, zero runtime dependencies.",
