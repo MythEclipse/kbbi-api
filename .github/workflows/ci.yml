@@ -190,7 +190,15 @@ jobs:
     # The same reasoning as mcpedia: a PR must never deploy, and must not RUN the
     # deploy job either, or every Dependabot PR wears a permanent red X that the
     # queue worker then retries forever.
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    # `github.ref` is the check, NOT `event_name`.
+    #
+    # A manual `workflow_dispatch` RUNS THE WORKFLOW FILE FROM THE DISPATCHED REF
+    # and DOES receive the repository secrets. So gating on the event still let a
+    # dispatch aimed at a branch deploy that branch — which is exactly what
+    # happened on mcpedia on 2026-10-17. Keying on the ref excludes PRs
+    # (`refs/pull/<n>/merge`) and dispatch-against-a-branch alike, while
+    # dispatch-on-main still works.
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
