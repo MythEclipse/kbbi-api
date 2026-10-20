@@ -1,3 +1,10 @@
+## [1.0.15](https://github.com/asepharyana/kbbi-api/compare/v1.0.14...v1.0.15) (2026-10-20)
+
+
+### Bug Fixes
+
+* auto-fix code quality [skip ci] ([7d7124d](https://github.com/asepharyana/kbbi-api/commit/7d7124d227247b7d6b80703e7dc3cc67842a533e))
+
 ## [1.0.14](https://github.com/asepharyana/kbbi-api/compare/v1.0.13...v1.0.14) (2026-10-17)
 
 
